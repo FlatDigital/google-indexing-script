@@ -2,25 +2,38 @@ import { getAccessToken } from "./shared/auth";
 import {
   convertToSiteUrl,
   getPublishMetadata,
-  requestIndexing,
   getEmojiForStatus,
   getPageIndexingStatus,
+  requestDeleting,
 } from "./shared/gsc";
-import { getSitemapPages } from "./shared/sitemap";
 import { Status } from "./shared/types";
 import { batch } from "./shared/utils";
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
+import { mkdirSync, writeFileSync } from "fs";
+import { readCSVFile } from "./shared/csv";
 
 const CACHE_TIMEOUT = 1000 * 60 * 60 * 24 * 14; // 14 days
 
+type CSVRow = {
+  url: string;
+};
+
 const main = async () => {
   const input = process.argv[2];
+  const csvFile = process.argv[3];
 
   if (!input) {
     console.error("❌ Please provide a domain or site URL as the first argument.");
     console.error("");
     process.exit(1);
   }
+
+  if (!csvFile) {
+    console.error("❌ Please provide a csv file as the second argument.");
+    console.error("");
+    process.exit(1);
+  }
+
+  const urls = await readCSVFile<CSVRow>(csvFile);
 
   const accessToken = await getAccessToken();
   const siteUrl = convertToSiteUrl(input);
@@ -36,19 +49,17 @@ const main = async () => {
     process.exit(1);
   }
 
-  const [sitemaps, pages] = await getSitemapPages(accessToken, siteUrl);
+  const pages = urls.map((row) => row.url);
 
-  if (sitemaps.length === 0) {
-    console.error("❌ No sitemaps found, add them to Google Search Console and try again.");
+  if (pages.length === 0) {
+    console.error("❌ No pages found, add them to the csv.");
     console.error("");
     process.exit(1);
   }
 
-  console.log(`👉 Found ${pages.length} URLs in ${sitemaps.length} sitemap`);
+  console.log(`👉 Found ${pages.length} URLs in ${csvFile} file`);
 
-  const statusPerUrl: Record<string, { status: Status; lastCheckedAt: string }> = existsSync(cachePath)
-    ? JSON.parse(readFileSync(cachePath, "utf8"))
-    : {};
+  const statusPerUrl: Record<string, { status: Status; lastCheckedAt: string }> = {};
   const pagesPerStatus: Record<Status, string[]> = {
     [Status.SubmittedAndIndexed]: [],
     [Status.DuplicateWithoutUserSelectedCanonical]: [],
@@ -61,19 +72,12 @@ const main = async () => {
     [Status.Error]: [],
   };
 
-  const indexableStatuses = [
-    Status.DiscoveredCurrentlyNotIndexed,
-    Status.CrawledCurrentlyNotIndexed,
-    Status.URLIsUnknownToGoogle,
-    Status.Forbidden,
-    Status.Error,
-    Status.RateLimited,
-  ];
+  const deletableStatuses = [Status.SubmittedAndIndexed];
 
   const shouldRecheck = (status: Status, lastCheckedAt: string) => {
-    const shouldIndexIt = indexableStatuses.includes(status);
+    const shouldDeleteIt = deletableStatuses.includes(status);
     const isOld = new Date(lastCheckedAt) < new Date(Date.now() - CACHE_TIMEOUT);
-    return shouldIndexIt || isOld;
+    return shouldDeleteIt || isOld;
   };
 
   await batch(
@@ -106,26 +110,26 @@ const main = async () => {
   }
   console.log("");
 
-  const indexablePages = Object.entries(pagesPerStatus).flatMap(([status, pages]) =>
-    indexableStatuses.includes(status as Status) ? pages : [],
+  const deletablePages = Object.entries(pagesPerStatus).flatMap(([status, pages]) =>
+    deletableStatuses.includes(status as Status) ? pages : [],
   );
 
-  if (indexablePages.length === 0) {
-    console.log(`✨ There are no pages that can be indexed. Everything is already indexed!`);
+  if (deletablePages.length === 0) {
+    console.log(`✨ There are no pages that can be deleted. Everything is already deleted!`);
   } else {
-    console.log(`✨ Found ${indexablePages.length} pages that can be indexed.`);
-    indexablePages.forEach((url) => console.log(`• ${url}`));
+    console.log(`✨ Found ${deletablePages.length} pages that can be removed.`);
+    deletablePages.forEach((url) => console.log(`• ${url}`));
   }
   console.log(``);
 
-  for (const url of indexablePages) {
+  for (const url of deletablePages) {
     console.log(`📄 Processing url: ${url}`);
     const status = await getPublishMetadata(accessToken, url);
     if (status === 404) {
-      await requestIndexing(accessToken, url);
-      console.log("🚀 Indexing requested successfully. It may take a few days for Google to process it.");
+      await requestDeleting(accessToken, url);
+      console.log("🚀 Deleting requested successfully. It may take a few days for Google to process it.");
     } else if (status < 400) {
-      console.log(`🕛 Indexing already requested previously. It may take a few days for Google to process it.`);
+      console.log(`🕛 Deleted already requested previously. It may take a few days for Google to process it.`);
     }
     console.log(``);
   }

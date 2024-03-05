@@ -11,7 +11,7 @@ export function convertToSiteUrl(input: string) {
 export async function getPageIndexingStatus(
   accessToken: string,
   siteUrl: string,
-  inspectionUrl: string
+  inspectionUrl: string,
 ): Promise<Status> {
   try {
     const response = await fetchRetry(`https://searchconsole.googleapis.com/v1/urlInspection/index:inspect`, {
@@ -83,7 +83,7 @@ export async function getPublishMetadata(accessToken: string, url: string) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-    }
+    },
   );
 
   if (response.status === 403) {
@@ -138,6 +138,40 @@ export async function requestIndexing(accessToken: string, url: string) {
       process.exit(1);
     } else {
       console.error(`❌ Failed to request indexing.`);
+      console.error(`Response was: ${response.status}`);
+      console.error(await response.text());
+    }
+  }
+}
+
+export async function requestDeleting(accessToken: string, url: string) {
+  const response = await fetchRetry("https://indexing.googleapis.com/v3/urlNotifications:publish", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      url: url,
+      type: "URL_DELETED",
+    }),
+  });
+
+  if (response.status === 403) {
+    console.error(`🔐 This service account doesn't have access to this site.`);
+    console.error(`Response was: ${response.status}`);
+  }
+
+  if (response.status >= 300) {
+    if (response.status === 429) {
+      console.error("🚦 Rate limit exceeded, try again later.");
+      console.error("");
+      console.error("   Quota: https://developers.google.com/search/apis/indexing-api/v3/quota-pricing#quota");
+      console.error("   Usage: https://console.cloud.google.com/apis/enabled");
+      console.error("");
+      process.exit(1);
+    } else {
+      console.error(`❌ Failed to request deleting.`);
       console.error(`Response was: ${response.status}`);
       console.error(await response.text());
     }
