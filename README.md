@@ -4,7 +4,8 @@ Use this script to get your entire site indexed on Google in less than 48 hours.
 
 You can read more about the motivation behind it and how it works in this blog post https://seogets.com/blog/google-indexing-script
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
+>
 > 1. Indexing != Ranking. This will not help your content/page rank on Google, it'll just let Google know about the existence of all your pages.
 > 2. This script uses [Google Indexing API](https://developers.google.com/search/apis/indexing-api/v3/quickstart). While there is no absolute guarantee that every page will be indexed, recent tests conducted in December 2023 have shown a notably high success rate.
 
@@ -27,6 +28,7 @@ You can read more about the motivation behind it and how it works in this blog p
 2. Ensure you are using an up-to-date Node.js version, with a preference for v20 or later. Check your current version with `node -v`.
 3. Run `npm install` to install the dependencies
 4. Run `npm run index <domain or url>` to index all the pages of your site.
+
 - If your site is a `Domain` Property on GSC, then run it like `npm run index seogets.com`
 - Otherwise, if it's a `URL Prefix` property, then run it like `npm run index https://seogets.com`
 - When in doubt try both 😀
@@ -34,6 +36,10 @@ You can read more about the motivation behind it and how it works in this blog p
 Here's an example of what you should expect:
 
 ![](./output.png)
+
+## Remove Indexed Pages
+
+1. Run `npm run remove <domain> remove.csv` to remove all the pages of the csv from the index.
 
 **Important Notes:**
 
